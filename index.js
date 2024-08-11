@@ -4,6 +4,8 @@ const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
 const userModel = require("./models/user");
 const postModel = require("./models/post");
+const path = require('path');
+const upload = require("./utils/multer");
 
 const app = express();
 
@@ -11,6 +13,7 @@ app.set("view engine", "ejs");
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.get("/", (req, res) => {
     res.render("index");
@@ -104,8 +107,33 @@ app.post('/updatePost/:id', isLoggedIn, async (req, res) => {
     res.redirect('/profile');
 })
 
+app.get('/delete/:id', isLoggedIn, async (req, res) => {
+    console.log('from here ----------------------------------')
+    const post = await postModel.findOneAndDelete({_id: req.params.id})
+    console.log(post);
+    res.redirect('/profile');
+    const user = await userModel.findOne({_id: req.user.userid});
+    console.log(user, user.posts.length);
+    user.posts.splice(post._id, 1);
+    await user.save()
+    console.log(user.posts, user.posts.length)
+    console.log('to here ----------------------------------')
+})
+
+app.get('/profilepic', async (req, res) => {
+    res.render('profilepic');
+})
+
+app.post('/uploadprofilepic', isLoggedIn, upload.single("profilepic"), async (req, res) => {
+    const user = await userModel.findOne({_id: req.user.userid});
+    user.profilepic = req.file.filename;
+    await user.save();
+    res.redirect('/profile');   
+})
+
+
 function isLoggedIn(req, res, next) {
-    if (req.cookies.token == "") return res.send("You must be logged in first");
+    if (!req.cookies.token || req.cookies.token == "") return res.send("You must be logged in first");
     else {
         const data = jwt.verify(req.cookies.token, "secretKey");
         req.user = data;
